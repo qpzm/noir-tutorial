@@ -1,5 +1,7 @@
 [package]
-authors = []
-compiler_version = "0.1"
+name = "board"
+type = "bin"
+authors = [""]
+compiler_version = ">=0.33.0"
 
 [dependencies]

@@ -9,8 +9,8 @@ fn has_ship(coord: Field, ship_coords: [Field; 25]) -> u32 {
 }
 
 // Input:
-// lengths: [u4; 5] - Lengths of the 5 ships
-fn check_for_collision(lengths: [u4; 5], ships: [Field; 15]) {
+// lengths: [u8; 5] - Lengths of the 5 ships
+fn check_for_collision(lengths: [u8; 5], ships: [Field; 15]) {
   let mut collisions = 0;
   // Array is initialized to length 25 because array indices in Noir are currently restricted
   // to compile time values. Length 25 ensures index never exceeds array bounds. (index max (i * 5 + j) is 24 because 0 <= i, j < 5)
@@ -20,26 +20,33 @@ fn check_for_collision(lengths: [u4; 5], ships: [Field; 15]) {
   for i in 0..5 {
     for j in 0..5 {
       // check (0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), ... , (3, 4)
-      if (lengths[i] > j as u4) {
+      if (lengths[i] > j as u8) {
+        let mut coord = 0;
+        let index = i * 5 + j;
+        if ships[i*3+2] == 1 { // vertical
+          coord = ships[i*3] + (ships[i*3+1] + j as Field) * 10;
+        } else { // horizontal
+          coord = ships[i*3] + (j as Field) + ships[i*3+1] * 10;
+        }
         collisions = collisions + has_ship(coord, ship_coords);
         ship_coords[index] = coord;
       }
     }
   }
-  constrain collisions == 0;
+  assert(collisions == 0);
 }
 
-// z { u4 } - Orientation of ship (horizontal or vertical)
-fn check_ship_ranges(length: u4, x: u4, y: u4, z: u4) {
+// z { u8 } - Orientation of ship (horizontal or vertical)
+fn check_ship_ranges(length: u8, x: u8, y: u8, z: u8) {
   // Constrain z to binary
-  constrain z <= 1;
+  assert(z <= 1);
 
   if z == 1 {
-    constrain y + length <= 10;
-    constrain x < 10;
+    assert(y + length <= 10);
+    assert(x < 10);
   } else {
-    constrain x + length <= 10;
-    constrain y < 10;
+    assert(x + length <= 10);
+    assert(y < 10);
   }
 }
 
@@ -48,11 +55,34 @@ fn check_ship_ranges(length: u4, x: u4, y: u4, z: u4) {
 // It had better replace with 2D array of lengths [5][3]
 fn main(hash: pub Field, ships: [Field; 15]) {
   // Lengths of the 5 ships
-  let length: [u4; 5] = [5, 4, 3, 3, 2];
+  let lengths: [u8; 5] = [5, 4, 3, 3, 2];
   for i in 0..5 {
-    check_ship_ranges(lengths[i], ships[i*3] as u4, ships[i*3 + 1] as u4, ships[i*3 + 2] as u4);
+    check_ship_ranges(lengths[i], ships[i*3] as u8, ships[i*3 + 1] as u8, ships[i*3 + 2] as u8);
   }
-  check_for_collision(length, ships);
-  let computed_hash = std::hash::pedersen(ships);
-  constrain hash == computed_hash[0];
+  check_for_collision(lengths, ships);
+  let computed_hash = std::hash::pedersen_hash(ships);
+  assert(hash == computed_hash);
+}
+
+#[test]
+fn test_check_for_collision() {
+  let lengths: [u8; 5] = [5, 4, 3, 3, 2];
+  let ships: [Field; 15] = [
+    0, 4, 1, // Carrier (length 5): starts at (0,4), vertical
+    4, 3, 0, // Battleship (length 4): starts at (4,3), horizontal
+    3, 5, 0, // Cruiser (length 3): starts at (3,5), horizontal
+    1, 1, 0, // Submarine (length 3): starts at (1,1), horizontal
+    6, 7, 0  // Destroyer (length 2): starts at (6,7), horizontal
+  ];
+  check_for_collision(lengths, ships);
+}
+
+#[test(should_fail)]
+fn test_check_ship_ranges_with_negative_x() {
+  check_ship_ranges(-1, 4, 3, 0);
+}
+
+#[test]
+fn test_check_ship_ranges() {
+  check_ship_ranges(5, 0, 4, 1);
 }
